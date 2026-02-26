@@ -2745,24 +2745,44 @@ export default function App() {
     const handleCreateGroup = async (data) => {
         const emojis = ["🌍", "🏔️", "🌴", "🏖️", "🗼", "🌸", "🎭", "🚀"];
         const emoji = emojis[Math.floor(Math.random() * emojis.length)];
-        const { data: newGroup, error } = await supabase
-            .from("groups")
-            .insert({ name: data.name, destination: data.destination, dates: data.dates, status: "planning", visibility: data.visibility || "private", img: emoji, created_by: authUser.id })
-            .select()
-            .single();
-        if (error || !newGroup) return;
+        const groupName = data.name;
+        const destination = data.destination || "TBD";
+        const dates = data.dates || "TBD";
+        const visibility = data.visibility || "private";
 
-        await supabase.from("group_members").insert({ group_id: newGroup.id, user_id: authUser.id });
+        // Insert without .select() to avoid RLS SELECT blocking before member is added
+        const { data: inserted, error } = await supabase
+            .from("groups")
+            .insert({ name: groupName, destination, dates, status: "planning", visibility, img: emoji, created_by: authUser.id })
+            .select("id")
+            .single();
+
+        // If select fails due to RLS, try fetching by created_by as fallback
+        let groupId = inserted?.id;
+        if (!groupId) {
+            const { data: fallback } = await supabase
+                .from("groups")
+                .select("id")
+                .eq("created_by", authUser.id)
+                .eq("name", groupName)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .single();
+            groupId = fallback?.id;
+        }
+        if (!groupId) { console.error("Failed to create group:", error); return; }
+
+        await supabase.from("group_members").insert({ group_id: groupId, user_id: authUser.id });
 
         setGroups(prev => [...prev, {
-            id: newGroup.id, name: newGroup.name, destination: newGroup.destination,
-            dates: newGroup.dates, members: [profile.name], status: newGroup.status,
-            visibility: newGroup.visibility, img: emoji,
+            id: groupId, name: groupName, destination,
+            dates, members: [profile.name], status: "planning",
+            visibility, img: emoji,
         }]);
 
         await supabase.from("notifications").insert({
             user_id: authUser.id, icon: "Users", color: "sky",
-            text: `You created trip "${data.name}"`,
+            text: `You created trip "${groupName}"`,
         });
     };
 
@@ -3192,23 +3212,37 @@ export default function App() {
         }, ...prev]);
 
         // Also create a group for this trip
-        const { data: newGroup, error: groupErr } = await supabase
+        const groupName = `${data.destination}${data.month ? " " + data.month.slice(0, 3) : ""} '26`;
+        const groupDates = data.month ? `${data.month} · ${data.days} days` : "TBD";
+        const groupVis = data.visibility || "private";
+
+        const { data: newGroup } = await supabase
             .from("groups")
             .insert({
-                name: `${data.destination}${data.month ? " " + data.month.slice(0, 3) : ""} '26`,
-                destination: data.destination,
-                dates: data.month ? `${data.month} · ${data.days} days` : "TBD",
-                status: "planning", visibility: data.visibility || "private", img: emoji, created_by: authUser.id,
+                name: groupName, destination: data.destination, dates: groupDates,
+                status: "planning", visibility: groupVis, img: emoji, created_by: authUser.id,
             })
-            .select()
+            .select("id")
             .single();
-        if (groupErr) { console.error("groups insert error:", groupErr); }
-        if (newGroup) {
-            await supabase.from("group_members").insert({ group_id: newGroup.id, user_id: authUser.id });
+
+        let gId = newGroup?.id;
+        if (!gId) {
+            const { data: fallback } = await supabase
+                .from("groups")
+                .select("id")
+                .eq("created_by", authUser.id)
+                .eq("name", groupName)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .single();
+            gId = fallback?.id;
+        }
+        if (gId) {
+            await supabase.from("group_members").insert({ group_id: gId, user_id: authUser.id });
             setGroups(prev => [...prev, {
-                id: newGroup.id, name: newGroup.name, destination: newGroup.destination,
-                dates: newGroup.dates, members: [profile.name], status: newGroup.status,
-                visibility: newGroup.visibility, img: emoji,
+                id: gId, name: groupName, destination: data.destination,
+                dates: groupDates, members: [profile.name], status: "planning",
+                visibility: groupVis, img: emoji,
             }]);
         }
 
