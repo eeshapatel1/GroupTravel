@@ -2529,7 +2529,7 @@ export default function App() {
         // Load proposed trips (explore page)
         const { data: proposed } = await supabase
             .from("proposed_trips")
-            .select("*, proposed_trip_members(profiles(name)), proposed_trip_requests(from_handle)")
+            .select("*, proposed_trip_members(user_id, profiles(name)), join_requests(from_handle)")
             .order("created_at", { ascending: false });
         if (proposed) {
             setProposedTrips(proposed.map(t => ({
@@ -2538,7 +2538,7 @@ export default function App() {
                 days: t.days || 0, description: t.description || "", tags: t.tags || [],
                 visibility: t.visibility || "public", maxMembers: t.max_members || 8,
                 members: t.proposed_trip_members?.map(m => m.profiles?.name).filter(Boolean) || [],
-                pendingRequests: t.proposed_trip_requests?.map(r => r.from_handle).filter(Boolean) || [],
+                pendingRequests: t.join_requests?.map(r => r.from_handle).filter(Boolean) || [],
                 createdAt: formatRelativeTime(t.created_at),
                 budgetRange: t.budget_range || "", highlights: t.highlights || [],
             })));
@@ -2546,9 +2546,9 @@ export default function App() {
 
         // Load join requests
         const { data: jrs } = await supabase
-            .from("proposed_trip_requests")
+            .from("join_requests")
             .select("*")
-            .or(`from_handle.eq.${profile?.handle},proposed_trips!inner(organizer_handle.eq.${profile?.handle})`);
+            .order("created_at", { ascending: false });
         if (jrs) {
             setJoinRequests(jrs.map(r => ({
                 id: r.id, tripId: r.trip_id, fromHandle: r.from_handle,
@@ -2689,7 +2689,7 @@ export default function App() {
         const emoji = emojis[Math.floor(Math.random() * emojis.length)];
         const { data: newGroup, error } = await supabase
             .from("groups")
-            .insert({ name: data.name, destination: data.destination, dates: data.dates, status: "planning", visibility: data.visibility || "private", emoji, created_by: authUser.id })
+            .insert({ name: data.name, destination: data.destination, dates: data.dates, status: "planning", visibility: data.visibility || "private", img: emoji, created_by: authUser.id })
             .select()
             .single();
         if (error || !newGroup) return;
@@ -2772,7 +2772,7 @@ export default function App() {
         const { data: item } = await supabase
             .from("itinerary_items")
             .insert({
-                day_id: day.id, name: data.name, category: data.cat, status: data.status,
+                day_id: day.id, group_id: selectedGroup.id, name: data.name, category: data.cat, status: data.status,
                 owner: data.owner, cost: data.cost, time: data.time, link: data.link,
             })
             .select()
@@ -3002,7 +3002,7 @@ export default function App() {
         // Add vote to selected option
         const selectedOpt = poll.options.find(o => o.id === optionId);
         if (selectedOpt && !selectedOpt.voters.includes(profile.name)) {
-            await supabase.from("poll_votes").insert({ option_id: optionId, voter_name: profile.name });
+            await supabase.from("poll_votes").insert({ poll_id: pollId, option_id: optionId, voter_name: profile.name });
         }
 
         setPolls(prev => prev.map(p => {
@@ -3139,7 +3139,7 @@ export default function App() {
                 name: `${data.destination}${data.month ? " " + data.month.slice(0, 3) : ""} '26`,
                 destination: data.destination,
                 dates: data.month ? `${data.month} · ${data.days} days` : "TBD",
-                status: "planning", visibility: data.visibility, emoji, created_by: authUser.id,
+                status: "planning", visibility: data.visibility, img: emoji, created_by: authUser.id,
             })
             .select()
             .single();
@@ -3160,7 +3160,7 @@ export default function App() {
 
     const handleRequestJoinTrip = async (tripId, note) => {
         const { data: req } = await supabase
-            .from("proposed_trip_requests")
+            .from("join_requests")
             .insert({ trip_id: tripId, from_handle: profile.handle, note: note || "", status: "pending" })
             .select()
             .single();
@@ -3178,7 +3178,7 @@ export default function App() {
 
     const handleRespondToJoinRequest = async (requestId, accept) => {
         const req = joinRequests.find(r => r.id === requestId);
-        await supabase.from("proposed_trip_requests").update({ status: accept ? "accepted" : "rejected" }).eq("id", requestId);
+        await supabase.from("join_requests").update({ status: accept ? "accepted" : "rejected" }).eq("id", requestId);
         setJoinRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: accept ? "accepted" : "rejected" } : r));
 
         if (accept && req) {
