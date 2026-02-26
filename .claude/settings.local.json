@@ -10,7 +10,13 @@
       "Bash(npx vite --host)",
       "Bash(curl:*)",
       "Bash(npx vite build:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(brew install:*)",
+      "Bash(/tmp/gh/gh_2.63.2_macOS_arm64/bin/gh:*)",
+      "Bash(git push:*)",
+      "Bash(find:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nFix profile photo upload: use Supabase Storage and correct column names\n\n- Upload images to Supabase Storage ''avatars'' bucket instead of base64\n- Fix column name mismatch: profile_image → profile_image_url, background_image → background_image_url\n- Fix data loading to read from correct column names\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ]
   }
 }

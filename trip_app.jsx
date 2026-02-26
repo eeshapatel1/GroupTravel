@@ -95,14 +95,17 @@ const ProfileTab = ({ user, recommendations, onNavigate, onUpdateUser, allUsers,
     const followerCount = u.followerHandles?.length || 0;
     const followingCount = u.followingHandles?.length || 0;
 
-    const handleImageUpload = (file, field) => {
+    const handleImageUpload = async (file, field) => {
         if (!file || !isOwnProfile) return;
         if (!file.type.startsWith("image/")) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            onUpdateUser({ ...user, [field]: e.target.result });
-        };
-        reader.readAsDataURL(file);
+        const userId = user.handle.replace("@", "");
+        const filePath = `${userId}/${field}-${Date.now()}.${file.name.split(".").pop()}`;
+        const { error } = await supabase.storage.from("avatars").upload(filePath, file, { upsert: true });
+        if (error) return;
+        const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
+        if (urlData?.publicUrl) {
+            onUpdateUser({ ...user, [field]: urlData.publicUrl });
+        }
     };
 
     const startEdit = () => {
@@ -2439,8 +2442,8 @@ export default function App() {
         name: profile.name || "",
         handle: profile.handle || "",
         avatar: profile.avatar || "👤",
-        profileImage: profile.profile_image || null,
-        backgroundImage: profile.background_image || null,
+        profileImage: profile.profile_image_url || null,
+        backgroundImage: profile.background_image_url || null,
         bio: profile.bio || "",
         countriesVisited: profile.countries_visited || 0,
         tripsPlanned: profile.trips_planned || 0,
@@ -2479,7 +2482,7 @@ export default function App() {
             profiles.forEach(p => {
                 usersMap[p.handle] = {
                     name: p.name || "", handle: p.handle || "", avatar: p.avatar || "👤",
-                    profileImage: p.profile_image || null, backgroundImage: p.background_image || null,
+                    profileImage: p.profile_image_url || null, backgroundImage: p.background_image_url || null,
                     bio: p.bio || "", countriesVisited: p.countries_visited || 0, tripsPlanned: p.trips_planned || 0,
                     followerHandles: p.follower_handles || [], followingHandles: p.following_handles || [],
                     travelStyles: p.travel_styles || [], wishlist: p.wishlist || [], countries: p.countries || [],
@@ -3196,8 +3199,8 @@ export default function App() {
         if (updates.name !== undefined) dbUpdates.name = updates.name;
         if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
         if (updates.avatar !== undefined) dbUpdates.avatar = updates.avatar;
-        if (updates.profileImage !== undefined) dbUpdates.profile_image = updates.profileImage;
-        if (updates.backgroundImage !== undefined) dbUpdates.background_image = updates.backgroundImage;
+        if (updates.profileImage !== undefined) dbUpdates.profile_image_url = updates.profileImage;
+        if (updates.backgroundImage !== undefined) dbUpdates.background_image_url = updates.backgroundImage;
         if (updates.travelStyles !== undefined) dbUpdates.travel_styles = updates.travelStyles;
         if (updates.wishlist !== undefined) dbUpdates.wishlist = updates.wishlist;
         if (updates.countries !== undefined) dbUpdates.countries = updates.countries;
