@@ -84,6 +84,9 @@ const ProfileTab = ({ user, authUserId, recommendations, onNavigate, onUpdateUse
     const [showQuiz, setShowQuiz] = useState(false);
     const [quizStep, setQuizStep] = useState(0);
     const [quizAnswers, setQuizAnswers] = useState([]);
+    const [currentSelections, setCurrentSelections] = useState([]);
+    const [wishlistInput, setWishlistInput] = useState("");
+    const [showWishlistInput, setShowWishlistInput] = useState(false);
     const [showList, setShowList] = useState(null); // "followers" | "following" | null
     const profileInputRef = useRef(null);
     const bgInputRef = useRef(null);
@@ -103,7 +106,7 @@ const ProfileTab = ({ user, authUserId, recommendations, onNavigate, onUpdateUse
         if (error) return;
         const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
         if (urlData?.publicUrl) {
-            onUpdateUser({ ...user, [field]: urlData.publicUrl });
+            onUpdateUser({ [field]: urlData.publicUrl });
         }
     };
 
@@ -113,7 +116,7 @@ const ProfileTab = ({ user, authUserId, recommendations, onNavigate, onUpdateUse
     };
 
     const saveEdit = () => {
-        onUpdateUser({ ...user, name: editForm.name || user.name, bio: editForm.bio, avatar: editForm.avatar || user.avatar });
+        onUpdateUser({ name: editForm.name || user.name, bio: editForm.bio, avatar: editForm.avatar || user.avatar });
         setIsEditing(false);
     };
 
@@ -139,17 +142,24 @@ const ProfileTab = ({ user, authUserId, recommendations, onNavigate, onUpdateUse
         "Nightlife & social": "Nightlife", "Solo": "Solo", "Small group (2-4)": "Small Group", "Larger group (5+)": "Social",
     };
 
-    const handleQuizAnswer = (answer) => {
-        const newAnswers = [...quizAnswers, answer];
-        setQuizAnswers(newAnswers);
+    const toggleSelection = (label) => {
+        setCurrentSelections(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]);
+    };
+
+    const handleQuizNext = () => {
+        if (currentSelections.length === 0) return;
+        const newAnswers = [...quizAnswers, ...currentSelections];
         if (quizStep < quizQuestions.length - 1) {
+            setQuizAnswers(newAnswers);
+            setCurrentSelections([]);
             setQuizStep(quizStep + 1);
         } else {
             const styles = newAnswers.map(a => styleMap[a] || a).filter(Boolean);
-            onUpdateUser({ ...user, travelStyles: styles });
+            onUpdateUser({ travelStyles: styles });
             setShowQuiz(false);
             setQuizStep(0);
             setQuizAnswers([]);
+            setCurrentSelections([]);
         }
     };
 
@@ -282,8 +292,8 @@ const ProfileTab = ({ user, authUserId, recommendations, onNavigate, onUpdateUse
                         <textarea value={editForm.bio} onChange={e => setEditForm({ ...editForm, bio: e.target.value })} placeholder="Bio" rows={2} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-300 resize-none" />
                         {(u.profileImage || u.backgroundImage) && (
                             <div className="flex gap-2">
-                                {u.profileImage && <button onClick={() => onUpdateUser({ ...user, profileImage: null })} className="flex-1 py-2 text-xs font-medium text-rose-500 border border-rose-200 rounded-xl hover:bg-rose-50 transition-colors">Remove Profile Photo</button>}
-                                {u.backgroundImage && <button onClick={() => onUpdateUser({ ...user, backgroundImage: null })} className="flex-1 py-2 text-xs font-medium text-rose-500 border border-rose-200 rounded-xl hover:bg-rose-50 transition-colors">Remove Background</button>}
+                                {u.profileImage && <button onClick={() => onUpdateUser({ profileImage: null })} className="flex-1 py-2 text-xs font-medium text-rose-500 border border-rose-200 rounded-xl hover:bg-rose-50 transition-colors">Remove Profile Photo</button>}
+                                {u.backgroundImage && <button onClick={() => onUpdateUser({ backgroundImage: null })} className="flex-1 py-2 text-xs font-medium text-rose-500 border border-rose-200 rounded-xl hover:bg-rose-50 transition-colors">Remove Background</button>}
                             </div>
                         )}
                         <div className="flex gap-2">
@@ -303,16 +313,22 @@ const ProfileTab = ({ user, authUserId, recommendations, onNavigate, onUpdateUse
                     <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mb-4">
                         <div className="h-full bg-violet-400 rounded-full transition-all duration-300" style={{ width: `${((quizStep + 1) / quizQuestions.length) * 100}%` }} />
                     </div>
-                    <p className="text-sm font-medium text-slate-700 mb-3">{quizQuestions[quizStep].q}</p>
+                    <p className="text-sm font-medium text-slate-700 mb-2">{quizQuestions[quizStep].q}</p>
+                    <p className="text-xs text-slate-400 mb-3">Select all that apply</p>
                     <div className="space-y-2">
                         {quizQuestions[quizStep].options.map(([emoji, label]) => (
-                            <button key={label} onClick={() => handleQuizAnswer(label)}
-                                className="w-full flex items-center gap-3 p-3 bg-slate-50 rounded-xl text-sm font-medium text-slate-700 hover:bg-violet-50 hover:text-violet-700 transition-colors text-left">
+                            <button key={label} onClick={() => toggleSelection(label)}
+                                className={`w-full flex items-center gap-3 p-3 rounded-xl text-sm font-medium transition-colors text-left ${currentSelections.includes(label) ? "bg-violet-100 text-violet-700 ring-2 ring-violet-300" : "bg-slate-50 text-slate-700 hover:bg-violet-50 hover:text-violet-700"}`}>
                                 <span className="text-lg">{emoji}</span> {label}
+                                {currentSelections.includes(label) && <Check size={16} className="ml-auto text-violet-500" />}
                             </button>
                         ))}
                     </div>
-                    <button onClick={() => { setShowQuiz(false); setQuizStep(0); setQuizAnswers([]); }} className="w-full mt-3 py-2 text-slate-400 text-sm hover:text-slate-600">Cancel</button>
+                    <button onClick={handleQuizNext} disabled={currentSelections.length === 0}
+                        className="w-full mt-3 py-2.5 bg-violet-500 text-white text-sm font-semibold rounded-xl hover:bg-violet-600 transition-colors disabled:opacity-40">
+                        {quizStep < quizQuestions.length - 1 ? "Next" : "Finish"}
+                    </button>
+                    <button onClick={() => { setShowQuiz(false); setQuizStep(0); setQuizAnswers([]); setCurrentSelections([]); }} className="w-full mt-2 py-2 text-slate-400 text-sm hover:text-slate-600">Cancel</button>
                 </Card>
             )}
 
@@ -339,9 +355,9 @@ const ProfileTab = ({ user, authUserId, recommendations, onNavigate, onUpdateUse
                 <div className="flex items-center gap-2 mb-4 flex-wrap">
                     {u.travelStyles?.map(s => <Badge key={s} color="sky">{s}</Badge>)}
                     {isOwnProfile && (
-                        <button onClick={() => { setShowQuiz(true); setQuizStep(0); setQuizAnswers([]); }}
+                        <button onClick={() => { setShowQuiz(true); setQuizStep(0); setQuizAnswers([]); setCurrentSelections([]); }}
                             className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border-2 border-dashed border-slate-200 text-slate-400 hover:border-violet-300 hover:text-violet-500 transition-colors">
-                            <Edit3 size={10} /> Retake Quiz
+                            <Edit3 size={10} /> {u.travelStyles?.length > 0 ? "Retake Quiz" : "Take Quiz"}
                         </button>
                     )}
                 </div>
@@ -351,12 +367,35 @@ const ProfileTab = ({ user, authUserId, recommendations, onNavigate, onUpdateUse
                 <SectionHeader title="Wishlist" />
                 <div className="flex gap-2 flex-wrap">
                     {u.wishlist?.map(w => (
-                        <span key={w} className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-full text-sm font-medium">
+                        <span key={w} className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-full text-sm font-medium group">
                             <Heart size={12} fill="currentColor" /> {w}
+                            {isOwnProfile && (
+                                <button onClick={() => onUpdateUser({ wishlist: (u.wishlist || []).filter(item => item !== w) })}
+                                    className="ml-0.5 text-amber-400 hover:text-rose-500 transition-colors">
+                                    <X size={12} />
+                                </button>
+                            )}
                         </span>
                     ))}
-                    {(!u.wishlist || u.wishlist.length === 0) && <p className="text-sm text-slate-400">No wishlist items yet.</p>}
+                    {isOwnProfile && !showWishlistInput && (
+                        <button onClick={() => setShowWishlistInput(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 border-2 border-dashed border-amber-200 text-amber-400 rounded-full text-sm font-medium hover:border-amber-300 hover:text-amber-500 transition-colors">
+                            <Plus size={12} /> Add
+                        </button>
+                    )}
+                    {(!u.wishlist || u.wishlist.length === 0) && !showWishlistInput && !isOwnProfile && <p className="text-sm text-slate-400">No wishlist items yet.</p>}
                 </div>
+                {isOwnProfile && showWishlistInput && (
+                    <div className="flex gap-2 mt-3">
+                        <input value={wishlistInput} onChange={e => setWishlistInput(e.target.value)} placeholder="e.g. Bali, Tokyo, Paris..."
+                            onKeyDown={e => { if (e.key === "Enter" && wishlistInput.trim()) { onUpdateUser({ wishlist: [...(u.wishlist || []), wishlistInput.trim()] }); setWishlistInput(""); setShowWishlistInput(false); } }}
+                            className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" autoFocus />
+                        <button onClick={() => { if (wishlistInput.trim()) { onUpdateUser({ wishlist: [...(u.wishlist || []), wishlistInput.trim()] }); setWishlistInput(""); setShowWishlistInput(false); } }}
+                            className="px-3 py-2 bg-amber-500 text-white text-sm font-semibold rounded-xl hover:bg-amber-600">Add</button>
+                        <button onClick={() => { setWishlistInput(""); setShowWishlistInput(false); }}
+                            className="px-3 py-2 border border-slate-200 text-slate-500 text-sm rounded-xl hover:bg-slate-50">Cancel</button>
+                    </div>
+                )}
             </Card>
 
             <Card className="p-4">
@@ -567,23 +606,30 @@ const GroupsTab = ({ groups, onSelectGroup, onCreateGroup, onNavigate, proposedT
                 );
             })()}
 
-            {!selectedPublicTrip && proposedTrips && proposedTrips.length > 0 && (
+            {!selectedPublicTrip && (
                 <Card className="p-4">
                     <SectionHeader title="Discover Public Trips" action="Browse All" onAction={() => onNavigate("explore")} />
-                    <div className="space-y-3">
-                        {proposedTrips.filter(t => t.visibility === "public").slice(0, 3).map(t => (
-                            <div key={t.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => setSelectedPublicTrip(t)}>
-                                <div className="flex items-center gap-3">
-                                    <span className="text-xl">{t.emoji}</span>
-                                    <div>
-                                        <p className="text-sm font-semibold text-slate-700">{t.destination}</p>
-                                        <p className="text-xs text-slate-400">{t.members?.length || 1}/{t.maxMembers} members{t.month ? ` · ${t.month}` : ""}</p>
+                    {proposedTrips && proposedTrips.filter(t => t.visibility === "public").length > 0 ? (
+                        <div className="space-y-3">
+                            {proposedTrips.filter(t => t.visibility === "public").slice(0, 3).map(t => (
+                                <div key={t.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-xl">{t.emoji}</span>
+                                        <div>
+                                            <p className="text-sm font-semibold text-slate-700">{t.destination}</p>
+                                            <p className="text-xs text-slate-400">{t.members?.length || 1}/{t.maxMembers} members{t.month ? ` · ${t.month}` : ""}</p>
+                                        </div>
                                     </div>
+                                    <button onClick={() => setSelectedPublicTrip(t)}
+                                        className="px-3 py-1.5 bg-sky-50 text-sky-600 text-xs font-semibold rounded-lg hover:bg-sky-100 transition-colors">
+                                        Learn More
+                                    </button>
                                 </div>
-                                <ChevronRight size={16} className="text-slate-400" />
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-sm text-slate-400">No public trips yet. Check back later or explore destinations!</p>
+                    )}
                 </Card>
             )}
         </div>
@@ -3291,6 +3337,7 @@ export default function App() {
     // ── User update handler ──
     const handleUpdateUser = async (updates) => {
         const dbUpdates = {};
+        // Only map fields that exist in the profiles table
         if (updates.name !== undefined) dbUpdates.name = updates.name;
         if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
         if (updates.avatar !== undefined) dbUpdates.avatar = updates.avatar;
@@ -3298,12 +3345,13 @@ export default function App() {
         if (updates.backgroundImage !== undefined) dbUpdates.background_image_url = updates.backgroundImage;
         if (updates.travelStyles !== undefined) dbUpdates.travel_styles = updates.travelStyles;
         if (updates.wishlist !== undefined) dbUpdates.wishlist = updates.wishlist;
-        if (updates.countries !== undefined) dbUpdates.countries = updates.countries;
         if (updates.countriesVisited !== undefined) dbUpdates.countries_visited = updates.countriesVisited;
         if (updates.tripsPlanned !== undefined) dbUpdates.trips_planned = updates.tripsPlanned;
-        if (updates.followerHandles !== undefined) dbUpdates.follower_handles = updates.followerHandles;
-        if (updates.followingHandles !== undefined) dbUpdates.following_handles = updates.followingHandles;
-        await updateProfile(dbUpdates);
+
+        if (Object.keys(dbUpdates).length > 0) {
+            const { error } = await updateProfile(dbUpdates);
+            if (error) { console.error("Profile update error:", error); return; }
+        }
 
         // Update allUsers map too
         if (profile?.handle) {
