@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(unzip:*)",
+      "Bash(node --version:*)",
+      "Bash(npm --version)",
+      "Bash(npm create:*)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npx vite --host)",
+      "Bash(curl:*)",
+      "Bash(npx vite build:*)",
+      "Bash(cat:*)"
+    ]
+  }
+}
