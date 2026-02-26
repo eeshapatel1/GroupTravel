@@ -2475,6 +2475,7 @@ export default function App() {
         if (!authUser) return;
         setDataLoading(true);
 
+        try {
         // Load profiles → build allUsers map
         const { data: profiles } = await supabase.from("profiles").select("*");
         if (profiles) {
@@ -2507,7 +2508,7 @@ export default function App() {
                 setGroups(groupsData.map(g => ({
                     id: g.id, name: g.name, destination: g.destination, dates: g.dates,
                     members: g.group_members?.map(m => m.profiles?.name).filter(Boolean) || [],
-                    status: g.status, visibility: g.visibility, img: g.emoji || "🌍",
+                    status: g.status, visibility: g.visibility, img: g.img || "🌍",
                 })));
             }
         }
@@ -2558,7 +2559,7 @@ export default function App() {
 
         // Load recommendations
         const { data: recs } = await supabase
-            .from("recommendations")
+            .from("profile_recommendations")
             .select("*")
             .eq("user_id", authUser.id);
         if (recs && recs.length > 0) {
@@ -2570,6 +2571,9 @@ export default function App() {
             setRecommendations(recsMap);
         }
 
+        } catch (err) {
+            console.error("Error loading data:", err);
+        }
         setDataLoading(false);
     }, [authUser, profile?.handle]);
 

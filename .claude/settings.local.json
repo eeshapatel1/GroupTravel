@@ -17,7 +17,8 @@
       "Bash(find:*)",
       "Bash(git add:*)",
       "Bash(git commit -m \"$(cat <<''EOF''\nFix profile photo upload: use Supabase Storage and correct column names\n\n- Upload images to Supabase Storage ''avatars'' bucket instead of base64\n- Fix column name mismatch: profile_image → profile_image_url, background_image → background_image_url\n- Fix data loading to read from correct column names\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(git commit -m \"$(cat <<''EOF''\nFix schema/code mismatches: align DB columns with frontend expectations\n\n- Recreate tables with text-based columns instead of UUID FKs\n- Fix groups insert: emoji → img column name\n- Fix table name: proposed_trip_requests → join_requests\n- Fix proposed_trips: organizer_id → organizer_handle\n- Simplify RLS policies for fresh database\n- Add migration SQL file for user to run\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(git commit -m \"$(cat <<''EOF''\nFix schema/code mismatches: align DB columns with frontend expectations\n\n- Recreate tables with text-based columns instead of UUID FKs\n- Fix groups insert: emoji → img column name\n- Fix table name: proposed_trip_requests → join_requests\n- Fix proposed_trips: organizer_id → organizer_handle\n- Simplify RLS policies for fresh database\n- Add migration SQL file for user to run\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git commit:*)"
     ]
   }
 }
