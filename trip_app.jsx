@@ -76,7 +76,7 @@ const catColor = (cat) => {
 const ICON_MAP = { Users, Calendar, DollarSign, Heart, Star };
 
 // ─── Profile Tab ─────────────────────────────────────────
-const ProfileTab = ({ user, recommendations, onNavigate, onUpdateUser, allUsers, viewingProfile, onViewProfile }) => {
+const ProfileTab = ({ user, authUserId, recommendations, onNavigate, onUpdateUser, allUsers, viewingProfile, onViewProfile }) => {
     const [expandedCountry, setExpandedCountry] = useState(null);
     const [expandedCity, setExpandedCity] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -98,8 +98,7 @@ const ProfileTab = ({ user, recommendations, onNavigate, onUpdateUser, allUsers,
     const handleImageUpload = async (file, field) => {
         if (!file || !isOwnProfile) return;
         if (!file.type.startsWith("image/")) return;
-        const userId = user.handle.replace("@", "");
-        const filePath = `${userId}/${field}-${Date.now()}.${file.name.split(".").pop()}`;
+        const filePath = `${authUserId}/${field}-${Date.now()}.${file.name.split(".").pop()}`;
         const { error } = await supabase.storage.from("avatars").upload(filePath, file, { upsert: true });
         if (error) return;
         const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
@@ -3329,7 +3328,7 @@ export default function App() {
                         </div>
                     ) : (
                         <>
-                            {activeTab === "profile" && <ProfileTab user={currentUser} recommendations={recommendations} onNavigate={setActiveTab} onUpdateUser={handleUpdateUser} allUsers={allUsers} viewingProfile={viewingProfile} onViewProfile={setViewingProfile} />}
+                            {activeTab === "profile" && <ProfileTab user={currentUser} authUserId={authUser.id} recommendations={recommendations} onNavigate={setActiveTab} onUpdateUser={handleUpdateUser} allUsers={allUsers} viewingProfile={viewingProfile} onViewProfile={setViewingProfile} />}
                             {activeTab === "groups" && <GroupsTab groups={groups} onSelectGroup={handleSelectGroup} onCreateGroup={handleCreateGroup} onNavigate={setActiveTab} />}
                             {activeTab === "explore" && <ExploreTab user={currentUser} allUsers={allUsers} proposedTrips={proposedTrips} joinRequests={joinRequests} onProposeTrip={handleProposeTrip} onRequestJoin={handleRequestJoinTrip} onRespondToJoinRequest={handleRespondToJoinRequest} onViewProfile={(handle) => { setViewingProfile(handle === profile.handle ? null : handle); setActiveTab("profile"); }} />}
                             {activeTab === "notifs" && <NotificationsTab notifications={notifications} onDismiss={handleDismissNotification} onMarkRead={handleMarkRead} />}
