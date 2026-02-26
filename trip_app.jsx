@@ -436,7 +436,8 @@ const ProfileTab = ({ user, authUserId, recommendations, onNavigate, onUpdateUse
 };
 
 // ─── Groups Tab ──────────────────────────────────────────
-const GroupsTab = ({ groups, onSelectGroup, onCreateGroup, onNavigate }) => {
+const GroupsTab = ({ groups, onSelectGroup, onCreateGroup, onNavigate, proposedTrips, allUsers, onViewProfile }) => {
+    const [selectedPublicTrip, setSelectedPublicTrip] = useState(null);
     const [showCreate, setShowCreate] = useState(false);
     const [newGroup, setNewGroup] = useState({ name: "", destination: "", dates: "", visibility: "private" });
 
@@ -513,24 +514,78 @@ const GroupsTab = ({ groups, onSelectGroup, onCreateGroup, onNavigate }) => {
                 );
             })}
 
-            <Card className="p-4">
-                <SectionHeader title="Discover Public Groups" action="Browse All" />
-                <div className="space-y-3">
-                    {[{ name: "Tokyo Foodies Oct", dest: "Tokyo", members: 4, max: 6, style: "Food & Culture", emoji: "🇯🇵" },
-                    { name: "Patagonia Hikers", dest: "Argentina", members: 3, max: 5, style: "Adventure", emoji: "🏔️" }].map(g => (
-                        <div key={g.name} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                            <div className="flex items-center gap-3">
-                                <span className="text-xl">{g.emoji}</span>
-                                <div>
-                                    <p className="text-sm font-semibold text-slate-700">{g.name}</p>
-                                    <p className="text-xs text-slate-400">{g.members}/{g.max} members · {g.style}</p>
+            {selectedPublicTrip && (() => {
+                const t = selectedPublicTrip;
+                const organizer = allUsers?.[t.organizerHandle];
+                return (
+                    <Card className="p-4">
+                        <div className="flex items-center gap-2 mb-4">
+                            <button onClick={() => setSelectedPublicTrip(null)} className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors"><ChevronLeft size={16} className="text-slate-600" /></button>
+                            <h3 className="font-bold text-slate-800">Trip Details</h3>
+                        </div>
+                        <div className="flex items-center gap-3 mb-4">
+                            <span className="text-3xl">{t.emoji}</span>
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800">{t.destination}</h3>
+                                <p className="text-sm text-slate-500">{t.month ? `${t.month} · ` : ""}{t.days} days</p>
+                            </div>
+                        </div>
+                        {t.budgetRange && <div className="flex items-center gap-2 mb-3 p-3 bg-emerald-50 rounded-xl"><DollarSign size={16} className="text-emerald-600" /><span className="text-sm font-medium text-emerald-700">{t.budgetRange}</span></div>}
+                        {t.description && <p className="text-sm text-slate-600 mb-3">{t.description}</p>}
+                        {t.highlights?.length > 0 && (
+                            <div className="mb-3">
+                                <p className="text-xs font-semibold text-slate-500 mb-1.5">Highlights</p>
+                                <div className="flex flex-wrap gap-1.5">{t.highlights.map(h => <Badge key={h} color="teal">{h}</Badge>)}</div>
+                            </div>
+                        )}
+                        {t.tags?.length > 0 && (
+                            <div className="mb-3">
+                                <p className="text-xs font-semibold text-slate-500 mb-1.5">Tags</p>
+                                <div className="flex flex-wrap gap-1.5">{t.tags.map(tag => <Badge key={tag} color="sky">{tag}</Badge>)}</div>
+                            </div>
+                        )}
+                        <div className="flex items-center gap-2 mb-3">
+                            <Users size={14} className="text-slate-400" />
+                            <span className="text-sm text-slate-500">{t.members?.length || 1}/{t.maxMembers} members</span>
+                        </div>
+                        {organizer && (
+                            <div className="p-3 bg-slate-50 rounded-xl">
+                                <p className="text-xs font-semibold text-slate-500 mb-2">Organizer</p>
+                                <div className="flex items-center justify-between cursor-pointer" onClick={() => onViewProfile && onViewProfile(t.organizerHandle)}>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center text-sm">{organizer.avatar}</div>
+                                        <div>
+                                            <p className="text-sm font-semibold text-slate-700">{organizer.name}</p>
+                                            <p className="text-xs text-slate-400">{t.organizerHandle}</p>
+                                        </div>
+                                    </div>
+                                    <ChevronRight size={16} className="text-slate-400" />
                                 </div>
                             </div>
-                            <button className="px-3 py-1.5 bg-sky-100 text-sky-700 text-xs font-semibold rounded-lg hover:bg-sky-200 transition-colors">Request</button>
-                        </div>
-                    ))}
-                </div>
-            </Card>
+                        )}
+                    </Card>
+                );
+            })()}
+
+            {!selectedPublicTrip && proposedTrips && proposedTrips.length > 0 && (
+                <Card className="p-4">
+                    <SectionHeader title="Discover Public Trips" action="Browse All" onAction={() => onNavigate("explore")} />
+                    <div className="space-y-3">
+                        {proposedTrips.filter(t => t.visibility === "public").slice(0, 3).map(t => (
+                            <div key={t.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => setSelectedPublicTrip(t)}>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xl">{t.emoji}</span>
+                                    <div>
+                                        <p className="text-sm font-semibold text-slate-700">{t.destination}</p>
+                                        <p className="text-xs text-slate-400">{t.members?.length || 1}/{t.maxMembers} members{t.month ? ` · ${t.month}` : ""}</p>
+                                    </div>
+                                </div>
+                                <ChevronRight size={16} className="text-slate-400" />
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+            )}
         </div>
     );
 };
@@ -3113,39 +3168,41 @@ export default function App() {
     const handleProposeTrip = async (data) => {
         const emoji = data.emoji || ["🌍", "🏔️", "🌴", "🏖️", "🗼", "🌸", "🎭", "🚀"][Math.floor(Math.random() * 8)];
 
-        const { data: trip } = await supabase
+        try {
+        const { data: trip, error: tripErr } = await supabase
             .from("proposed_trips")
             .insert({
                 organizer_handle: profile.handle, destination: data.destination, emoji,
-                continent: data.continent || "", month: data.month, days: data.days,
-                description: "", tags: [], visibility: data.visibility, max_members: 8,
+                continent: data.continent || "", month: data.month || "", days: data.days || 7,
+                description: "", tags: [], visibility: data.visibility || "public", max_members: 8,
                 budget_range: "", highlights: [],
             })
             .select()
             .single();
-        if (!trip) return;
+        if (tripErr || !trip) { console.error("proposed_trips insert error:", tripErr); return; }
 
         await supabase.from("proposed_trip_members").insert({ trip_id: trip.id, user_id: authUser.id });
 
         setProposedTrips(prev => [{
             id: trip.id, organizerHandle: profile.handle, destination: data.destination,
             emoji, continent: data.continent || "", month: data.month || "", days: data.days || 0,
-            description: "", tags: [], visibility: data.visibility, maxMembers: 8,
+            description: "", tags: [], visibility: data.visibility || "public", maxMembers: 8,
             members: [profile.name], pendingRequests: [], createdAt: "Just now",
             budgetRange: "", highlights: [],
         }, ...prev]);
 
         // Also create a group for this trip
-        const { data: newGroup } = await supabase
+        const { data: newGroup, error: groupErr } = await supabase
             .from("groups")
             .insert({
                 name: `${data.destination}${data.month ? " " + data.month.slice(0, 3) : ""} '26`,
                 destination: data.destination,
                 dates: data.month ? `${data.month} · ${data.days} days` : "TBD",
-                status: "planning", visibility: data.visibility, img: emoji, created_by: authUser.id,
+                status: "planning", visibility: data.visibility || "private", img: emoji, created_by: authUser.id,
             })
             .select()
             .single();
+        if (groupErr) { console.error("groups insert error:", groupErr); }
         if (newGroup) {
             await supabase.from("group_members").insert({ group_id: newGroup.id, user_id: authUser.id });
             setGroups(prev => [...prev, {
@@ -3159,6 +3216,7 @@ export default function App() {
             user_id: authUser.id, icon: "Star", color: "emerald",
             text: `You proposed a trip to ${data.destination}!`,
         });
+        } catch (err) { console.error("handleProposeTrip error:", err); }
     };
 
     const handleRequestJoinTrip = async (tripId, note) => {
@@ -3329,7 +3387,7 @@ export default function App() {
                     ) : (
                         <>
                             {activeTab === "profile" && <ProfileTab user={currentUser} authUserId={authUser.id} recommendations={recommendations} onNavigate={setActiveTab} onUpdateUser={handleUpdateUser} allUsers={allUsers} viewingProfile={viewingProfile} onViewProfile={setViewingProfile} />}
-                            {activeTab === "groups" && <GroupsTab groups={groups} onSelectGroup={handleSelectGroup} onCreateGroup={handleCreateGroup} onNavigate={setActiveTab} />}
+                            {activeTab === "groups" && <GroupsTab groups={groups} onSelectGroup={handleSelectGroup} onCreateGroup={handleCreateGroup} onNavigate={setActiveTab} proposedTrips={proposedTrips} allUsers={allUsers} onViewProfile={(handle) => { setViewingProfile(handle === profile.handle ? null : handle); setActiveTab("profile"); }} />}
                             {activeTab === "explore" && <ExploreTab user={currentUser} allUsers={allUsers} proposedTrips={proposedTrips} joinRequests={joinRequests} onProposeTrip={handleProposeTrip} onRequestJoin={handleRequestJoinTrip} onRespondToJoinRequest={handleRespondToJoinRequest} onViewProfile={(handle) => { setViewingProfile(handle === profile.handle ? null : handle); setActiveTab("profile"); }} />}
                             {activeTab === "notifs" && <NotificationsTab notifications={notifications} onDismiss={handleDismissNotification} onMarkRead={handleMarkRead} />}
                             {activeTab === "group-detail" && selectedGroup && (
