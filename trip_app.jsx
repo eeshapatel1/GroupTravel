@@ -3400,8 +3400,8 @@ export default function App() {
     const navItems = [
         { id: "explore", icon: Globe, label: "Explore" },
         { id: "groups", icon: Users, label: "Trips" },
-        { id: "profile", icon: User, label: "Profile" },
         { id: "notifs", icon: Bell, label: "Alerts", badge: unreadCount },
+        { id: "profile", icon: User, label: "Profile" },
     ];
 
     const groupTabs = [
