@@ -2576,110 +2576,98 @@ export default function App() {
         setDataLoading(true);
 
         try {
-        // Load profiles → build allUsers map
-        const { data: profiles } = await supabase.from("profiles").select("*");
-        if (profiles) {
-            const usersMap = {};
-            profiles.forEach(p => {
-                usersMap[p.handle] = {
-                    name: p.name || "", handle: p.handle || "", avatar: p.avatar || "👤",
-                    profileImage: p.profile_image_url || null, backgroundImage: p.background_image_url || null,
-                    bio: p.bio || "", countriesVisited: p.countries_visited || 0, tripsPlanned: p.trips_planned || 0,
-                    followerHandles: p.follower_handles || [], followingHandles: p.following_handles || [],
-                    travelStyles: p.travel_styles || [], wishlist: p.wishlist || [], countries: p.countries || [],
-                };
-            });
-            setAllUsers(usersMap);
-        }
+            // Run all queries in parallel so one slow/failing query doesn't block the rest
+            const [profilesRes, memberRowsRes, notifsRes, proposedRes, jrsRes, recsRes] = await Promise.all([
+                supabase.from("profiles").select("*").then(r => r).catch(() => ({ data: null })),
+                supabase.from("group_members").select("group_id").eq("user_id", authUser.id).then(r => r).catch(() => ({ data: null })),
+                supabase.from("notifications").select("*").eq("user_id", authUser.id).order("created_at", { ascending: false }).limit(50).then(r => r).catch(() => ({ data: null })),
+                supabase.from("proposed_trips").select("*, proposed_trip_members(user_id, profiles(name))").order("created_at", { ascending: false }).then(r => r).catch(() => ({ data: null })),
+                supabase.from("join_requests").select("*").order("created_at", { ascending: false }).then(r => r).catch(() => ({ data: null })),
+                supabase.from("profile_recommendations").select("*").eq("user_id", authUser.id).then(r => r).catch(() => ({ data: null })),
+            ]);
 
-        // Load groups user belongs to
-        const { data: memberRows } = await supabase
-            .from("group_members")
-            .select("group_id")
-            .eq("user_id", authUser.id);
-        const groupIds = memberRows?.map(r => r.group_id) || [];
+            // Build allUsers map
+            if (profilesRes.data) {
+                const usersMap = {};
+                profilesRes.data.forEach(p => {
+                    usersMap[p.handle] = {
+                        name: p.name || "", handle: p.handle || "", avatar: p.avatar || "👤",
+                        profileImage: p.profile_image_url || null, backgroundImage: p.background_image_url || null,
+                        bio: p.bio || "", countriesVisited: p.countries_visited || 0, tripsPlanned: p.trips_planned || 0,
+                        followerHandles: p.follower_handles || [], followingHandles: p.following_handles || [],
+                        travelStyles: p.travel_styles || [], wishlist: p.wishlist || [], countries: p.countries || [],
+                    };
+                });
+                setAllUsers(usersMap);
+            }
 
-        if (groupIds.length > 0) {
-            const { data: groupsData } = await supabase
-                .from("groups")
-                .select("*, group_members(user_id, profiles(name))")
-                .in("id", groupIds);
-            if (groupsData) {
-                setGroups(groupsData.map(g => ({
-                    id: g.id, name: g.name, destination: g.destination, dates: g.dates,
-                    members: g.group_members?.map(m => m.profiles?.name).filter(Boolean) || [],
-                    status: g.status, visibility: g.visibility, img: g.img || "🌍",
+            // Load groups
+            const groupIds = memberRowsRes.data?.map(r => r.group_id) || [];
+            if (groupIds.length > 0) {
+                try {
+                    const { data: groupsData } = await supabase
+                        .from("groups")
+                        .select("*, group_members(user_id, profiles(name))")
+                        .in("id", groupIds);
+                    if (groupsData) {
+                        setGroups(groupsData.map(g => ({
+                            id: g.id, name: g.name, destination: g.destination, dates: g.dates,
+                            members: g.group_members?.map(m => m.profiles?.name).filter(Boolean) || [],
+                            status: g.status, visibility: g.visibility, img: g.img || "🌍",
+                        })));
+                    }
+                } catch (e) { console.error("Error loading groups:", e); }
+            }
+
+            // Set notifications
+            if (notifsRes.data) {
+                setNotifications(notifsRes.data.map(n => ({
+                    id: n.id, icon: n.icon || "Bell", color: n.color || "sky",
+                    text: n.text, time: formatRelativeTime(n.created_at), read: n.read,
                 })));
             }
-        }
 
-        // Load notifications
-        const { data: notifs } = await supabase
-            .from("notifications")
-            .select("*")
-            .eq("user_id", authUser.id)
-            .order("created_at", { ascending: false })
-            .limit(50);
-        if (notifs) {
-            setNotifications(notifs.map(n => ({
-                id: n.id, icon: n.icon || "Bell", color: n.color || "sky",
-                text: n.text, time: formatRelativeTime(n.created_at), read: n.read,
-            })));
-        }
+            // Set proposed trips
+            if (proposedRes.data) {
+                setProposedTrips(proposedRes.data.map(t => ({
+                    id: t.id, organizerHandle: t.organizer_handle, destination: t.destination,
+                    emoji: t.emoji || "🌍", continent: t.continent || "", month: t.month || "",
+                    days: t.days || 0, description: t.description || "", tags: t.tags || [],
+                    visibility: t.visibility || "public", maxMembers: t.max_members || 8,
+                    members: t.proposed_trip_members?.map(m => m.profiles?.name).filter(Boolean) || [],
+                    pendingRequests: [],
+                    createdAt: formatRelativeTime(t.created_at),
+                    budgetRange: t.budget_range || "", highlights: t.highlights || [],
+                })));
+            }
 
-        // Load proposed trips (explore page)
-        const { data: proposed } = await supabase
-            .from("proposed_trips")
-            .select("*, proposed_trip_members(user_id, profiles(name)), join_requests(from_handle)")
-            .order("created_at", { ascending: false });
-        if (proposed) {
-            setProposedTrips(proposed.map(t => ({
-                id: t.id, organizerHandle: t.organizer_handle, destination: t.destination,
-                emoji: t.emoji || "🌍", continent: t.continent || "", month: t.month || "",
-                days: t.days || 0, description: t.description || "", tags: t.tags || [],
-                visibility: t.visibility || "public", maxMembers: t.max_members || 8,
-                members: t.proposed_trip_members?.map(m => m.profiles?.name).filter(Boolean) || [],
-                pendingRequests: t.join_requests?.map(r => r.from_handle).filter(Boolean) || [],
-                createdAt: formatRelativeTime(t.created_at),
-                budgetRange: t.budget_range || "", highlights: t.highlights || [],
-            })));
-        }
+            // Set join requests
+            if (jrsRes.data) {
+                setJoinRequests(jrsRes.data.map(r => ({
+                    id: r.id, tripId: r.trip_id, fromHandle: r.from_handle,
+                    note: r.note || "", status: r.status, createdAt: formatRelativeTime(r.created_at),
+                })));
+            }
 
-        // Load join requests
-        const { data: jrs } = await supabase
-            .from("join_requests")
-            .select("*")
-            .order("created_at", { ascending: false });
-        if (jrs) {
-            setJoinRequests(jrs.map(r => ({
-                id: r.id, tripId: r.trip_id, fromHandle: r.from_handle,
-                note: r.note || "", status: r.status, createdAt: formatRelativeTime(r.created_at),
-            })));
-        }
-
-        // Load recommendations
-        const { data: recs } = await supabase
-            .from("profile_recommendations")
-            .select("*")
-            .eq("user_id", authUser.id);
-        if (recs && recs.length > 0) {
-            const recsMap = {};
-            recs.forEach(r => {
-                if (!recsMap[r.city]) recsMap[r.city] = [];
-                recsMap[r.city].push({ name: r.name, cat: r.category, rating: r.rating, note: r.note });
-            });
-            setRecommendations(recsMap);
-        }
+            // Set recommendations
+            if (recsRes.data && recsRes.data.length > 0) {
+                const recsMap = {};
+                recsRes.data.forEach(r => {
+                    if (!recsMap[r.city]) recsMap[r.city] = [];
+                    recsMap[r.city].push({ name: r.name, cat: r.category, rating: r.rating, note: r.note });
+                });
+                setRecommendations(recsMap);
+            }
 
         } catch (err) {
             console.error("Error loading data:", err);
         }
         setDataLoading(false);
-    }, [authUser, profile?.handle]);
+    }, [authUser]);
 
     useEffect(() => {
-        if (authUser && profile) loadInitialData();
-    }, [authUser, profile, loadInitialData]);
+        if (authUser) loadInitialData();
+    }, [authUser, loadInitialData]);
 
     // ── Load group-specific data when a group is selected ──
     const loadGroupData = useCallback(async (groupId) => {
