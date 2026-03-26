@@ -3365,7 +3365,7 @@ export default function App() {
     // ── Profile timeout: show retry/signout if profile never loads ──
     useEffect(() => {
         if (authUser && !profile && !authLoading) {
-            const timer = setTimeout(() => setProfileTimeout(true), 10000);
+            const timer = setTimeout(() => setProfileTimeout(true), 5000);
             return () => clearTimeout(timer);
         }
         if (profile) setProfileTimeout(false);

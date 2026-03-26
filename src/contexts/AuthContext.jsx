@@ -9,32 +9,40 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
-  const profileFetched = useRef(false)
+  const profileFetchInFlight = useRef(false)
+  const currentUserId = useRef(null)
 
   useEffect(() => {
-    // Safety timeout: if auth takes more than 10 seconds, stop loading
+    // Safety timeout: if auth takes more than 5 seconds, stop loading
     const safetyTimer = setTimeout(() => {
-      if (loading) setLoading(false)
-    }, 10000)
+      setLoading(false)
+    }, 5000)
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
-      else setLoading(false)
+      const sessionUser = session?.user ?? null
+      setUser(sessionUser)
+      if (sessionUser) {
+        currentUserId.current = sessionUser.id
+        fetchProfile(sessionUser.id)
+      } else {
+        setLoading(false)
+      }
     }).catch(() => setLoading(false))
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        const prev = user
-        setUser(session?.user ?? null)
-        if (session?.user) {
-          // Only fetch profile if we don't already have one or if user changed
-          if (!profileFetched.current || prev?.id !== session.user.id) {
-            await fetchProfile(session.user.id)
+      (_event, session) => {
+        const sessionUser = session?.user ?? null
+        setUser(sessionUser)
+        if (sessionUser) {
+          // Only fetch if user changed (skip INITIAL_SESSION duplicate)
+          if (currentUserId.current !== sessionUser.id) {
+            currentUserId.current = sessionUser.id
+            fetchProfile(sessionUser.id)
           }
         } else {
+          currentUserId.current = null
           setProfile(null)
-          profileFetched.current = false
+          profileFetchInFlight.current = false
           setLoading(false)
         }
       }
@@ -47,8 +55,11 @@ export function AuthProvider({ children }) {
   }, [])
 
   async function fetchProfile(userId) {
+    // Prevent concurrent fetches
+    if (profileFetchInFlight.current) return
+    profileFetchInFlight.current = true
     try {
-      // First try: quick fetch
+      // Quick fetch — for existing users this returns immediately
       const { data } = await supabase
         .from('profiles')
         .select('*')
@@ -56,12 +67,11 @@ export function AuthProvider({ children }) {
         .single()
       if (data) {
         setProfile(data)
-        profileFetched.current = true
         setLoading(false)
         return
       }
-      // Profile doesn't exist yet (new user) — wait for trigger then retry
-      await new Promise(r => setTimeout(r, 1500))
+      // Profile doesn't exist yet (new user) — wait briefly for DB trigger, then retry
+      await new Promise(r => setTimeout(r, 1000))
       const { data: retryData } = await supabase
         .from('profiles')
         .select('*')
@@ -69,7 +79,6 @@ export function AuthProvider({ children }) {
         .single()
       if (retryData) {
         setProfile(retryData)
-        profileFetched.current = true
         setLoading(false)
         return
       }
@@ -84,11 +93,11 @@ export function AuthProvider({ children }) {
         .select()
         .single()
       setProfile(newProfile)
-      profileFetched.current = true
     } catch (err) {
       console.error('Error fetching profile:', err)
     }
     setLoading(false)
+    profileFetchInFlight.current = false
   }
 
   async function signUp(email, password, metadata) {
@@ -121,7 +130,8 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut()
     setUser(null)
     setProfile(null)
-    profileFetched.current = false
+    currentUserId.current = null
+    profileFetchInFlight.current = false
   }
 
   async function updateProfile(updates) {
