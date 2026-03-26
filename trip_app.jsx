@@ -3361,6 +3361,16 @@ export default function App() {
         }
     };
 
+    // ── Profile timeout: sign out if profile never loads ──
+    const [profileTimeout, setProfileTimeout] = useState(false);
+    useEffect(() => {
+        if (authUser && !profile && !authLoading) {
+            const timer = setTimeout(() => setProfileTimeout(true), 10000);
+            return () => clearTimeout(timer);
+        }
+        if (profile) setProfileTimeout(false);
+    }, [authUser, profile, authLoading]);
+
     // ── Auth gates ──
     if (authLoading) {
         return (
@@ -3377,7 +3387,13 @@ export default function App() {
             <div className="min-h-screen bg-slate-50 flex items-center justify-center">
                 <div className="text-center">
                     <Loader2 size={32} className="animate-spin text-sky-500 mx-auto mb-3" />
-                    <p className="text-sm text-slate-500">Setting up your profile...</p>
+                    <p className="text-sm text-slate-500">{profileTimeout ? "Taking longer than expected..." : "Setting up your profile..."}</p>
+                    {profileTimeout && (
+                        <div className="mt-4 space-y-2">
+                            <button onClick={() => window.location.reload()} className="px-4 py-2 bg-sky-500 text-white text-sm font-semibold rounded-xl hover:bg-sky-600">Retry</button>
+                            <button onClick={() => { signOut(); }} className="block mx-auto px-4 py-2 text-slate-500 text-sm hover:text-slate-700">Sign out</button>
+                        </div>
+                    )}
                 </div>
             </div>
         );
