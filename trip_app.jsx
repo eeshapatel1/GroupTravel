@@ -2571,19 +2571,26 @@ export default function App() {
     };
 
     // ── Load initial data on auth ──
+    const dataLoaded = useRef(false);
     const loadInitialData = useCallback(async () => {
         if (!authUser) return;
+        if (dataLoaded.current) return; // Don't reload if already loaded
+        dataLoaded.current = true;
         setDataLoading(true);
 
+        // Timeout helper: resolve with fallback after 8 seconds
+        const withTimeout = (promise, ms = 8000) =>
+            Promise.race([promise, new Promise(resolve => setTimeout(() => resolve({ data: null }), ms))]);
+
         try {
-            // Run all queries in parallel so one slow/failing query doesn't block the rest
+            // Run all queries in parallel with timeout protection
             const [profilesRes, memberRowsRes, notifsRes, proposedRes, jrsRes, recsRes] = await Promise.all([
-                supabase.from("profiles").select("*").then(r => r).catch(() => ({ data: null })),
-                supabase.from("group_members").select("group_id").eq("user_id", authUser.id).then(r => r).catch(() => ({ data: null })),
-                supabase.from("notifications").select("*").eq("user_id", authUser.id).order("created_at", { ascending: false }).limit(50).then(r => r).catch(() => ({ data: null })),
-                supabase.from("proposed_trips").select("*, proposed_trip_members(user_id, profiles(name))").order("created_at", { ascending: false }).then(r => r).catch(() => ({ data: null })),
-                supabase.from("join_requests").select("*").order("created_at", { ascending: false }).then(r => r).catch(() => ({ data: null })),
-                supabase.from("profile_recommendations").select("*").eq("user_id", authUser.id).then(r => r).catch(() => ({ data: null })),
+                withTimeout(supabase.from("profiles").select("*").then(r => r).catch(() => ({ data: null }))),
+                withTimeout(supabase.from("group_members").select("group_id").eq("user_id", authUser.id).then(r => r).catch(() => ({ data: null }))),
+                withTimeout(supabase.from("notifications").select("*").eq("user_id", authUser.id).order("created_at", { ascending: false }).limit(50).then(r => r).catch(() => ({ data: null }))),
+                withTimeout(supabase.from("proposed_trips").select("*, proposed_trip_members(user_id, profiles(name))").order("created_at", { ascending: false }).then(r => r).catch(() => ({ data: null }))),
+                withTimeout(supabase.from("join_requests").select("*").order("created_at", { ascending: false }).then(r => r).catch(() => ({ data: null }))),
+                withTimeout(supabase.from("profile_recommendations").select("*").eq("user_id", authUser.id).then(r => r).catch(() => ({ data: null }))),
             ]);
 
             // Build allUsers map
@@ -2666,7 +2673,11 @@ export default function App() {
     }, [authUser]);
 
     useEffect(() => {
-        if (authUser) loadInitialData();
+        if (authUser) {
+            loadInitialData();
+        } else {
+            dataLoaded.current = false; // Reset on sign out so data reloads on next sign in
+        }
     }, [authUser, loadInitialData]);
 
     // ── Load group-specific data when a group is selected ──
