@@ -2536,6 +2536,7 @@ export default function App() {
     const [recommendations, setRecommendations] = useState({});
     const [dataLoading, setDataLoading] = useState(true);
     const [groupLoading, setGroupLoading] = useState(false);
+    const [profileTimeout, setProfileTimeout] = useState(false);
 
     // ── Build currentUser object from profile to match child component expectations ──
     const currentUser = profile ? {
@@ -2574,8 +2575,7 @@ export default function App() {
     const dataLoaded = useRef(false);
     const loadInitialData = useCallback(async () => {
         if (!authUser) return;
-        if (dataLoaded.current) return; // Don't reload if already loaded
-        dataLoaded.current = true;
+        if (dataLoaded.current) { setDataLoading(false); return; }
         setDataLoading(true);
 
         // Timeout helper: resolve with fallback after 8 seconds
@@ -2669,6 +2669,7 @@ export default function App() {
         } catch (err) {
             console.error("Error loading data:", err);
         }
+        dataLoaded.current = true;
         setDataLoading(false);
     }, [authUser]);
 
@@ -3361,8 +3362,7 @@ export default function App() {
         }
     };
 
-    // ── Profile timeout: sign out if profile never loads ──
-    const [profileTimeout, setProfileTimeout] = useState(false);
+    // ── Profile timeout: show retry/signout if profile never loads ──
     useEffect(() => {
         if (authUser && !profile && !authLoading) {
             const timer = setTimeout(() => setProfileTimeout(true), 10000);
@@ -3391,7 +3391,7 @@ export default function App() {
                     {profileTimeout && (
                         <div className="mt-4 space-y-2">
                             <button onClick={() => window.location.reload()} className="px-4 py-2 bg-sky-500 text-white text-sm font-semibold rounded-xl hover:bg-sky-600">Retry</button>
-                            <button onClick={() => { signOut(); }} className="block mx-auto px-4 py-2 text-slate-500 text-sm hover:text-slate-700">Sign out</button>
+                            <button onClick={async () => { await signOut(); window.location.reload(); }} className="block mx-auto px-4 py-2 text-slate-500 text-sm hover:text-slate-700">Sign out</button>
                         </div>
                     )}
                 </div>
